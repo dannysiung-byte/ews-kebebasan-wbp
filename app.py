@@ -2,11 +2,12 @@ import streamlit as st
 import pandas as pd
 from datetime import date
 import os
+import urllib.parse
 
-st.set_page_config(page_title="Kalender Pembebasan WBP", layout="wide")
+st.set_page_config(page_title="SIP-WBP", layout="wide")
 
-st.title("🗓️ EWS & Kalender Pembebasan WBP")
-st.caption("Aplikasi Pemantau Jadwal Kebebasan WBP Terintegrasi Data SDP")
+st.title("🗓️ SIP-WBP")
+st.caption("Sistem Informasi Pemantauan & Kebebasan WBP Terintegrasi SDP")
 
 FILE_CACHE_SDP = "data_sdp_terakhir.csv"
 FILE_CACHE_SK = "data_sk_terakhir.csv"
@@ -42,11 +43,9 @@ if df_sdp is not None:
     col_2_3 = next((c for c in df_sdp.columns if '2/3' in c or 'dua tiga' in c.lower()), None)
     col_eks = next((c for c in df_sdp.columns if 'EKSPIRASI' in c.upper() or 'EKS' in c.upper()), None)
     
-    # --- KHUSUS KHUSUS NARAPIDANA (NO REGISTER BERAWALAN 'B') ---
-    # Memastikan hanya No Reg berawalan B yang masuk hitungan pembebasan
+    # Filter Khusus Narapidana (Register B)
     df_sdp = df_sdp[df_sdp[col_reg].astype(str).str.strip().str.upper().str.startswith('B')].copy()
 
-    # Patokan Utama Kebebasan Murni pada Tanggal Ekspirasi
     df_sdp['Tgl_Bebas_Fix'] = df_sdp[col_eks] if col_eks else None
     df_sdp['Status_Kebebasan'] = "Bebas Murni (Patokan Ekspirasi)"
 
@@ -80,7 +79,7 @@ if df_sdp is not None:
 
     tab1, tab2, tab3 = st.tabs(["🚨 EWS & Filter Tanggal", "📅 Rekap Pembebasan (Napi Only)", "📱 Pencarian WBP (Mobile)"])
 
-    # --- TAB 1: EWS (NAPI ONLY) ---
+    # --- TAB 1: EWS ---
     with tab1:
         st.subheader("🚨 Early Warning System Pembebasan Narapidana")
         col_tgl1, col_tgl2 = st.columns(2)
@@ -96,7 +95,34 @@ if df_sdp is not None:
             st.warning(f"📌 Ditemukan **{len(bebas_filtered)} Narapidana (Reg B)** yang dijadwalkan bebas pada rentang tanggal tersebut.")
             kolom_tampil = [col_reg, col_nama, 'Tgl_Bebas_Fix', 'Status_Kebebasan']
             if col_2_3: kolom_tampil.append('Tgl_2_3_Clean')
-            st.dataframe(bebas_filtered[kolom_tampil].sort_values(by='Tgl_Bebas_Fix'), use_container_width=True)
+            
+            df_hasil = bebas_filtered[kolom_tampil].sort_values(by='Tgl_Bebas_Fix')
+            st.dataframe(df_hasil, use_container_width=True)
+
+            # --- GENERATE TEKS WA SESUAI RENTANG TANGGAL ---
+            tgl_str = f"{tgl_mulai.strftime('%d/%m/%Y')} s.d {tgl_selesai.strftime('%d/%m/%Y')}" if tgl_mulai != tgl_selesai else tgl_mulai.strftime('%d/%m/%Y')
+            
+            pesan_wa = f"📢 *LAPORAN EWS KEBEBASAN NARAPIDANA (SIP-WBP)*\n"
+            pesan_wa += f"Periode: {tgl_str}\n"
+            pesan_wa += "----------------------------------------\n"
+            
+            for idx, (_, row) in enumerate(df_hasil.iterrows(), start=1):
+                pesan_wa += f"{idx}. *Nama*: {row[col_nama]}\n"
+                pesan_wa += f"   *No Reg*: {row[col_reg]}\n"
+                pesan_wa += f"   *Tgl Bebas*: {row['Tgl_Bebas_Fix']}\n"
+                pesan_wa += f"   *Status*: {row['Status_Kebebasan']}\n\n"
+                
+            pesan_wa += f"----------------------------------------\n*Total*: {len(df_hasil)} Narapidana"
+            
+            encoded_wa = urllib.parse.quote(pesan_wa)
+            wa_link = f"https://api.whatsapp.com/send?text={encoded_wa}"
+
+            col_btn1, col_btn2 = st.columns(2)
+            with col_btn1:
+                st.link_button("📲 Kirim / Salin Laporan ke WhatsApp", wa_link, type="primary")
+            with col_btn2:
+                csv_data = df_hasil.to_csv(index=False).encode('utf-8')
+                st.download_button("📥 Unduh File Laporan (CSV/Excel)", data=csv_data, file_name=f"Laporan_Bebas_{tgl_mulai}.csv", mime="text/csv")
         else:
             st.success("✅ Tidak ada Narapidana yang dijadwalkan bebas pada rentang tanggal ini.")
 
