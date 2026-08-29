@@ -2,31 +2,38 @@ import streamlit as st
 import pandas as pd
 from datetime import date
 
-# Pengaturan Tampilan Layar (Responsif untuk HP & Desktop)
 st.set_page_config(page_title="Kalender Pembebasan WBP", layout="wide")
 
 st.title("🗓️ EWS & Kalender Pembebasan WBP")
 st.caption("Aplikasi Pemantau Jadwal Kebebasan WBP Terintegrasi Data SDP")
 
-# Sidebar untuk Unggah File Excel
 st.sidebar.header("📁 Unggah Data Excel")
 file_sdp = st.sidebar.file_uploader("1. Upload Data SDP (Master)", type=["xlsx", "csv"])
 file_sk = st.sidebar.file_uploader("2. Upload Update SK Integrasi", type=["xlsx", "csv"])
 
-# Proses Data jika File SDP Master diunggah
 if file_sdp is not None:
-    # Membaca Data SDP
     df_sdp = pd.read_excel(file_sdp) if file_sdp.name.endswith('.xlsx') else pd.read_csv(file_sdp)
     
-    # Menyiapkan kolom tanggal bebas utama
-    if 'Tgl_Bebas_Fix' not in df_sdp.columns:
-        if 'Tanggal Ekspirasi' in df_sdp.columns:
-            df_sdp['Tgl_Bebas_Fix'] = df_sdp['Tanggal Ekspirasi']
+    # --- LOGIKA PEMILAHAN OTOMATIS TANPA KOLOM JENIS PEMBEBASAN ---
+    def deteksi_jenis_dan_tanggal(row):
+        tgl_2_3 = row.get('Tanggal 2/3') or row.get('Tgl_2/3') or row.get('2/3')
+        tgl_eks = row.get('Tanggal Ekspirasi') or row.get('Tgl_Ekspirasi') or row.get('Ekspirasi')
+        
+        # Jika ada tanggal 2/3, kategorikan sebagai Integrasi
+        if pd.notna(tgl_2_3) and str(tgl_2_3).strip() != "-" and str(tgl_2_3).strip() != "":
+            jenis = "Integrasi (PB/CB/CMB)"
+            tgl_bebas = tgl_2_3  # Tanggal perkiraan sebelum SK turun
         else:
-            df_sdp['Tgl_Bebas_Fix'] = None
-        df_sdp['Status_SK'] = "Bebas Murni / Menunggu SK"
+            jenis = "Bebas Murni"
+            tgl_bebas = tgl_eks
+            
+        return pd.Series([jenis, tgl_bebas])
 
-    # Memperbarui tanggal bebas jika ada file Update SK Integrasi
+    # Terapkan pemilahan otomatis
+    df_sdp[['Jenis_Pembebasan_Auto', 'Tgl_Bebas_Fix']] = df_sdp.apply(deteksi_jenis_dan_tanggal, axis=1)
+    df_sdp['Status_SK'] = "Menunggu SK / Bebas Murni"
+
+    # Update data jika ada SK Turun
     if file_sk is not None:
         df_sk = pd.read_excel(file_sk) if file_sk.name.endswith('.xlsx') else pd.read_csv(file_sk)
         
@@ -41,32 +48,27 @@ if file_sdp is not None:
         
         st.sidebar.success("✅ Data SK Integrasi berhasil diperbarui!")
 
-    # Format Kolom Tanggal
-    df_sdp['Tgl_Bebas_Fix'] = pd.to_datetime(df_sdp['Tgl_Bebas_Fix']).dt.date
+    # Format Tanggal
+    df_sdp['Tgl_Bebas_Fix'] = pd.to_datetime(df_sdp['Tgl_Bebas_Fix'], errors='coerce').dt.date
     today = date.today()
 
     # Navigasi Tab Tampilan
     tab1, tab2, tab3 = st.tabs(["🚨 Bebas Hari Ini", "📅 Rekap Pembebasan", "📱 Pencarian WBP (Mobile)"])
 
-    # TAB 1: Dashboard Bebas Hari Ini
     with tab1:
         st.subheader(f"Pengingat Kebebasan Hari Ini ({today.strftime('%d %B %Y')})")
         bebas_hari_ini = df_sdp[df_sdp['Tgl_Bebas_Fix'] == today]
         
         if not bebas_hari_ini.empty:
             st.error(f"⚠️ ADA {len(bebas_hari_ini)} WBP YANG DIJADWALKAN BEBAS HARI INI!")
-            kolom_tampil = [k for k in ['No Register', 'Nama', 'Jenis Pembebasan', 'Status_SK'] if k in df_sdp.columns]
-            st.dataframe(bebas_hari_ini[kolom_tampil], use_container_width=True)
+            st.dataframe(bebas_hari_ini[['No Register', 'Nama', 'Jenis_Pembebasan_Auto', 'Status_SK']], use_container_width=True)
         else:
             st.success("✅ Tidak ada WBP yang dijadwalkan bebas hari ini.")
 
-    # TAB 2: Rekapitulasi Pembebasan
     with tab2:
         st.subheader("Daftar Rekapitulasi Pembebasan WBP")
-        kolom_pilihan = [k for k in ['No Register', 'Nama', 'Jenis Pembebasan', 'Tgl_Bebas_Fix', 'Status_SK'] if k in df_sdp.columns]
-        st.dataframe(df_sdp[kolom_pilihan], use_container_width=True)
+        st.dataframe(df_sdp[['No Register', 'Nama', 'Jenis_Pembebasan_Auto', 'Tgl_Bebas_Fix', 'Status_SK']], use_container_width=True)
 
-    # TAB 3: Direktori Mobile (HP Petugas)
     with tab3:
         st.subheader("🔍 Cari Identitas WBP")
         search = st.text_input("Ketik Nama atau No Register:")
@@ -80,11 +82,9 @@ if file_sdp is not None:
             if not hasil.empty:
                 for _, wbp in hasil.iterrows():
                     with st.expander(f"👤 {wbp.get('Nama', '-')} ({wbp.get('No Register', '-')})", expanded=True):
-                        st.write(f"**Jenis Pembebasan:** {wbp.get('Jenis Pembebasan', '-')}")
-                        st.write(f"**Vonis:** {wbp.get('Vonis', '-')}")
-                        st.write(f"**Tanggal 2/3:** {wbp.get('Tanggal 2/3', '-')}")
-                        st.write(f"**Tanggal Ekspirasi:** {wbp.get('Tanggal Ekspirasi', '-')}")
-                        st.write(f"**Status Kebebasan:** {wbp.get('Tgl_Bebas_Fix', '-')} ({wbp.get('Status_SK', '-')})")
+                        st.write(f"**Kategori:** {wbp.get('Jenis_Pembebasan_Auto', '-')}")
+                        st.write(f"**Tanggal Bebas Saat Ini:** {wbp.get('Tgl_Bebas_Fix', '-')}")
+                        st.write(f"**Status SK:** {wbp.get('Status_SK', '-')}")
             else:
                 st.warning("Data WBP tidak ditemukan.")
 
