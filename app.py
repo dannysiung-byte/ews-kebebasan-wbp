@@ -80,65 +80,71 @@ if df_sdp is not None:
     tab1, tab2, tab3 = st.tabs(["🚨 EWS & Filter Tanggal", "📅 Rekap Pembebasan (Napi Only)", "📱 Pencarian WBP (Mobile)"])
 
     # --- TAB 1: EWS ---
-    with tab1:
-        st.subheader("🚨 Early Warning System Pembebasan Narapidana")
-        col_tgl1, col_tgl2 = st.columns(2)
-        with col_tgl1:
-            tgl_mulai = st.date_input("Dari Tanggal:", today)
-        with col_tgl2:
-            tgl_selesai = st.date_input("Sampai Tanggal:", today)
+with tab1:
+    st.subheader("🚨 Early Warning System Pembebasan Narapidana")
+    col_tgl1, col_tgl2 = st.columns(2)
+    with col_tgl1:
+        tgl_mulai = st.date_input("Dari Tanggal:", today)
+    with col_tgl2:
+        tgl_selesai = st.date_input("Sampai Tanggal:", today)
 
-        bebas_filtered = df_sdp[(df_sdp['Tgl_Bebas_Fix'] >= tgl_mulai) & (df_sdp['Tgl_Bebas_Fix'] <= tgl_selesai)]
+    bebas_filtered = df_sdp[(df_sdp['Tgl_Bebas_Fix'] >= tgl_mulai) & (df_sdp['Tgl_Bebas_Fix'] <= tgl_selesai)]
+    
+    st.write("---")
+    if not bebas_filtered.empty:
+        st.warning(f"📌 Ditemukan **{len(bebas_filtered)} Narapidana (Reg B)** yang dijadwalkan bebas pada rentang tanggal tersebut.")
+        kolom_tampil = [col_reg, col_nama, 'Tgl_Bebas_Fix', 'Status_Kebebasan']
+        if col_2_3: kolom_tampil.append('Tgl_2_3_Clean')
         
-        st.write("---")
-        if not bebas_filtered.empty:
-            st.warning(f"📌 Ditemukan **{len(bebas_filtered)} Narapidana (Reg B)** yang dijadwalkan bebas pada rentang tanggal tersebut.")
-            kolom_tampil = [col_reg, col_nama, 'Tgl_Bebas_Fix', 'Status_Kebebasan']
-            if col_2_3: kolom_tampil.append('Tgl_2_3_Clean')
-            
-            df_hasil = bebas_filtered[kolom_tampil].sort_values(by='Tgl_Bebas_Fix')
-            st.dataframe(df_hasil, use_container_width=True)
+        df_hasil = bebas_filtered[kolom_tampil].sort_values(by='Tgl_Bebas_Fix').reset_index(drop=True)
+        
+        # MENAMBAHKAN KOLOM NO URUT OTOMATIS (MULAI DARI 1)
+        df_hasil.index = df_hasil.index + 1
+        df_hasil.index.name = "No"
+        
+        # Menampilkan dataframe dengan indeks 'No'
+        st.dataframe(df_hasil, use_container_width=True)# --- TAB 1: EWS ---
+with tab1:
+    st.subheader("🚨 Early Warning System Pembebasan Narapidana")
+    col_tgl1, col_tgl2 = st.columns(2)
+    with col_tgl1:
+        tgl_mulai = st.date_input("Dari Tanggal:", today)
+    with col_tgl2:
+        tgl_selesai = st.date_input("Sampai Tanggal:", today)
 
-            # --- GENERATE TEKS WA SESUAI RENTANG TANGGAL ---
-            tgl_str = f"{tgl_mulai.strftime('%d/%m/%Y')} s.d {tgl_selesai.strftime('%d/%m/%Y')}" if tgl_mulai != tgl_selesai else tgl_mulai.strftime('%d/%m/%Y')
-            
-            pesan_wa = f"📢 *LAPORAN EWS KEBEBASAN NARAPIDANA (SIP-WBP)*\n"
-            pesan_wa += f"Periode: {tgl_str}\n"
-            pesan_wa += "----------------------------------------\n"
-            
-            for idx, (_, row) in enumerate(df_hasil.iterrows(), start=1):
-                pesan_wa += f"{idx}. *Nama*: {row[col_nama]}\n"
-                pesan_wa += f"   *No Reg*: {row[col_reg]}\n"
-                pesan_wa += f"   *Tgl Bebas*: {row['Tgl_Bebas_Fix']}\n"
-                pesan_wa += f"   *Status*: {row['Status_Kebebasan']}\n\n"
-                
-            pesan_wa += f"----------------------------------------\n*Total*: {len(df_hasil)} Narapidana"
-            
-            encoded_wa = urllib.parse.quote(pesan_wa)
-            wa_link = f"https://api.whatsapp.com/send?text={encoded_wa}"
-
-            col_btn1, col_btn2 = st.columns(2)
-            with col_btn1:
-                st.link_button("📲 Kirim / Salin Laporan ke WhatsApp", wa_link, type="primary")
-            with col_btn2:
-                csv_data = df_hasil.to_csv(index=False).encode('utf-8')
-                st.download_button("📥 Unduh File Laporan (CSV/Excel)", data=csv_data, file_name=f"Laporan_Bebas_{tgl_mulai}.csv", mime="text/csv")
-        else:
-            st.success("✅ Tidak ada Narapidana yang dijadwalkan bebas pada rentang tanggal ini.")
-
+    bebas_filtered = df_sdp[(df_sdp['Tgl_Bebas_Fix'] >= tgl_mulai) & (df_sdp['Tgl_Bebas_Fix'] <= tgl_selesai)]
+    
+    st.write("---")
+    if not bebas_filtered.empty:
+        st.warning(f"📌 Ditemukan **{len(bebas_filtered)} Narapidana (Reg B)** yang dijadwalkan bebas pada rentang tanggal tersebut.")
+        kolom_tampil = [col_reg, col_nama, 'Tgl_Bebas_Fix', 'Status_Kebebasan']
+        if col_2_3: kolom_tampil.append('Tgl_2_3_Clean')
+        
+        df_hasil = bebas_filtered[kolom_tampil].sort_values(by='Tgl_Bebas_Fix').reset_index(drop=True)
+        
+        # MENAMBAHKAN KOLOM NO URUT OTOMATIS (MULAI DARI 1)
+        df_hasil.index = df_hasil.index + 1
+        df_hasil.index.name = "No"
+        
+        # Menampilkan dataframe dengan indeks 'No'
+        st.dataframe(df_hasil, use_container_width=True)
+        
     # --- TAB 2: REKAPITULASI ---
-    with tab2:
-        st.subheader("Daftar Rekapitulasi Pembebasan Narapidana (Reg B)")
-        kolom_utama = [col_reg, col_nama, 'Tgl_Bebas_Fix', 'Status_Kebebasan']
-        if col_2_3: kolom_utama.insert(2, 'Tgl_2_3_Clean')
-        if col_eks: kolom_utama.insert(3, col_eks)
+with tab2:
+    st.subheader("Daftar Rekapitulasi Pembebasan Narapidana (Reg B)")
+    kolom_utama = [col_reg, col_nama, 'Tgl_Bebas_Fix', 'Status_Kebebasan']
+    if col_2_3: kolom_utama.insert(2, 'Tgl_2_3_Clean')
+    if col_eks: kolom_utama.insert(3, col_eks)
+    
+    df_tampil = df_sdp[kolom_utama].copy()
+    if 'Tgl_2_3_Clean' in df_tampil.columns:
+        df_tampil.rename(columns={'Tgl_2_3_Clean': 'Tanggal 2/3 (Mulai Pengurusan)'}, inplace=True)
         
-        df_tampil = df_sdp[kolom_utama].copy()
-        if 'Tgl_2_3_Clean' in df_tampil.columns:
-            df_tampil.rename(columns={'Tgl_2_3_Clean': 'Tanggal 2/3 (Mulai Pengurusan)'}, inplace=True)
-            
-        st.dataframe(df_tampil.sort_values(by='Tgl_Bebas_Fix'), use_container_width=True)
+    df_tampil_sorted = df_tampil.sort_values(by='Tgl_Bebas_Fix').reset_index(drop=True)
+    df_tampil_sorted.index = df_tampil_sorted.index + 1
+    df_tampil_sorted.index.name = "No"
 
+    st.dataframe(df_tampil_sorted, use_container_width=True)
     # --- TAB 3: MOBILE ---
     with tab3:
         st.subheader("🔍 Cari Identitas Narapidana (Reg B)")
