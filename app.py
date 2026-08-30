@@ -15,7 +15,6 @@ FILE_CACHE_SK = "data_sk_terakhir.csv"
 
 st.sidebar.header("📁 Kelola Data SDP & SK")
 
-# Pilihan Unggah Update Data SDP Master Baru
 file_sdp_upload = st.sidebar.file_uploader("1. Update Data SDP Master (Opsional)", type=["xlsx", "csv"])
 file_sk_upload = st.sidebar.file_uploader("2. Upload Update SK Integrasi", type=["xlsx", "csv"])
 
@@ -30,20 +29,31 @@ def read_file(file):
         except:
             return pd.read_csv(file, sep=',')
 
+# Fungsi Konversi Tanggal Bahasa Indonesia & Berbagai Format
+def parse_indo_date(series):
+    bulan_indo = {
+        'januari': 'january', 'februari': 'february', 'maret': 'march',
+        'april': 'april', 'mei': 'may', 'juni': 'june',
+        'juli': 'july', 'agustus': 'august', 'september': 'september',
+        'oktober': 'october', 'november': 'november', 'desember': 'december'
+    }
+    
+    # Ubah nama bulan ke Bahasa Inggris agar terbaca oleh Pandas
+    s_clean = series.astype(str).str.lower()
+    for indo, eng in bulan_indo.items():
+        s_clean = s_clean.str.replace(indo, eng, regex=False)
+        
+    return pd.to_datetime(s_clean, errors='coerce', dayfirst=True).dt.date
+
 df_sdp = None
 
-# Prioritas 1: Jika user mengunggah SDP baru dari sidebar
 if file_sdp_upload is not None:
     df_sdp = read_file(file_sdp_upload)
     df_sdp.to_csv(FILE_CACHE_SDP, index=False, sep=';')
     st.sidebar.success("💾 Data Master SDP baru berhasil diperbarui!")
-
-# Prioritas 2: Membaca file master_sdp.xlsx permanen di GitHub
 elif os.path.exists(FILE_MASTER_GITHUB):
     df_sdp = read_file(FILE_MASTER_GITHUB)
     st.sidebar.success("✅ Terhubung dengan Master Data SDP (GitHub)")
-
-# Prioritas 3: Membaca cache terakhinya
 elif os.path.exists(FILE_CACHE_SDP):
     df_sdp = pd.read_csv(FILE_CACHE_SDP, sep=';')
     st.sidebar.info("ℹ️ Menampilkan Data SDP Terakhir.")
@@ -60,7 +70,6 @@ if df_sdp is not None:
     df_sdp['Tgl_Bebas_Fix'] = df_sdp[col_eks] if col_eks else None
     df_sdp['Status_Kebebasan'] = "Bebas Murni (Patokan Ekspirasi)"
 
-    # Proses Update SK Integrasi
     if file_sk_upload is not None:
         df_sk = read_file(file_sk_upload)
         df_sk.to_csv(FILE_CACHE_SK, index=False, sep=';')
@@ -83,9 +92,10 @@ if df_sdp is not None:
             df_sdp.loc[mask, 'Tgl_Bebas_Fix'] = tgl_sk
             df_sdp.loc[mask, 'Status_Kebebasan'] = f"SK Integrasi Turun ({no_sk})"
 
-    df_sdp['Tgl_Bebas_Fix'] = pd.to_datetime(df_sdp['Tgl_Bebas_Fix'], errors='coerce').dt.date
+    # Pembacaan Tanggal yang Mengakomodasi Bahasa Indonesia
+    df_sdp['Tgl_Bebas_Fix'] = parse_indo_date(df_sdp['Tgl_Bebas_Fix'])
     if col_2_3:
-        df_sdp['Tgl_2_3_Clean'] = pd.to_datetime(df_sdp[col_2_3], errors='coerce').dt.date
+        df_sdp['Tgl_2_3_Clean'] = parse_indo_date(df_sdp[col_2_3])
 
     today = date.today()
 
@@ -109,14 +119,11 @@ if df_sdp is not None:
             if col_2_3: kolom_tampil.append('Tgl_2_3_Clean')
             
             df_hasil = bebas_filtered[kolom_tampil].sort_values(by='Tgl_Bebas_Fix').reset_index(drop=True)
-            
-            # Penomoran Otomatis 1, 2, 3...
             df_hasil.index = df_hasil.index + 1
             df_hasil.index.name = "No"
             
             st.dataframe(df_hasil, use_container_width=True)
 
-            # Generate Pesan WhatsApp
             tgl_str = f"{tgl_mulai.strftime('%d/%m/%Y')} s.d {tgl_selesai.strftime('%d/%m/%Y')}" if tgl_mulai != tgl_selesai else tgl_mulai.strftime('%d/%m/%Y')
             
             pesan_wa = f"📢 *LAPORAN EWS KEBEBASAN NARAPIDANA (SIP-WBP)*\n"
