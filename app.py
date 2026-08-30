@@ -9,12 +9,15 @@ st.set_page_config(page_title="SIP-WBP", layout="wide")
 st.title("🗓️ SIP-WBP")
 st.caption("Sistem Informasi Pemantauan & Kebebasan WBP Terintegrasi SDP")
 
+FILE_MASTER_GITHUB = "master_sdp.xlsx"
 FILE_CACHE_SDP = "data_sdp_terakhir.csv"
 FILE_CACHE_SK = "data_sk_terakhir.csv"
 
-st.sidebar.header("📁 Unggah Data Excel")
-file_sdp = st.sidebar.file_uploader("1. Upload Data SDP (Master)", type=["xlsx", "csv"])
-file_sk = st.sidebar.file_uploader("2. Upload Update SK Integrasi", type=["xlsx", "csv"])
+st.sidebar.header("📁 Kelola Data SDP & SK")
+
+# Pilihan Unggah Update Data SDP Master Baru
+file_sdp_upload = st.sidebar.file_uploader("1. Update Data SDP Master (Opsional)", type=["xlsx", "csv"])
+file_sk_upload = st.sidebar.file_uploader("2. Upload Update SK Integrasi", type=["xlsx", "csv"])
 
 def read_file(file):
     if hasattr(file, 'name') and file.name.endswith('.xlsx'):
@@ -29,13 +32,21 @@ def read_file(file):
 
 df_sdp = None
 
-if file_sdp is not None:
-    df_sdp = read_file(file_sdp)
+# Prioritas 1: Jika user mengunggah SDP baru dari sidebar
+if file_sdp_upload is not None:
+    df_sdp = read_file(file_sdp_upload)
     df_sdp.to_csv(FILE_CACHE_SDP, index=False, sep=';')
-    st.sidebar.success("💾 Data Master SDP baru berhasil disimpan!")
+    st.sidebar.success("💾 Data Master SDP baru berhasil diperbarui!")
+
+# Prioritas 2: Membaca file master_sdp.xlsx permanen di GitHub
+elif os.path.exists(FILE_MASTER_GITHUB):
+    df_sdp = read_file(FILE_MASTER_GITHUB)
+    st.sidebar.success("✅ Terhubung dengan Master Data SDP (GitHub)")
+
+# Prioritas 3: Membaca cache terakhinya
 elif os.path.exists(FILE_CACHE_SDP):
     df_sdp = pd.read_csv(FILE_CACHE_SDP, sep=';')
-    st.sidebar.info("ℹ️ Menampilkan Data SDP Terakhir yang Tersimpan.")
+    st.sidebar.info("ℹ️ Menampilkan Data SDP Terakhir.")
 
 if df_sdp is not None:
     col_reg = next((c for c in df_sdp.columns if 'REG' in c.upper()), df_sdp.columns[0])
@@ -49,8 +60,9 @@ if df_sdp is not None:
     df_sdp['Tgl_Bebas_Fix'] = df_sdp[col_eks] if col_eks else None
     df_sdp['Status_Kebebasan'] = "Bebas Murni (Patokan Ekspirasi)"
 
-    if file_sk is not None:
-        df_sk = read_file(file_sk)
+    # Proses Update SK Integrasi
+    if file_sk_upload is not None:
+        df_sk = read_file(file_sk_upload)
         df_sk.to_csv(FILE_CACHE_SK, index=False, sep=';')
         st.sidebar.success("💾 Data SK Integrasi baru disimpan!")
     elif os.path.exists(FILE_CACHE_SK):
