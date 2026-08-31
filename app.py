@@ -18,6 +18,13 @@ st.sidebar.header("📁 Kelola Data SDP & SK")
 file_sdp_upload = st.sidebar.file_uploader("1. Update Data SDP Master (Opsional)", type=["xlsx", "csv"])
 file_sk_upload = st.sidebar.file_uploader("2. Upload Update SK Integrasi", type=["xlsx", "csv"])
 
+# Tombol Bersihkan Cache SK jika data tidak kunjung ter-update
+if os.path.exists(FILE_CACHE_SK):
+    if st.sidebar.button("🗑️ Hapus Cache Data SK Lama"):
+        os.remove(FILE_CACHE_SK)
+        st.sidebar.success("Cache SK dihapus! Silakan upload ulang file SK Integrasi.")
+        st.rerun()
+
 def read_file(file):
     if hasattr(file, 'name') and file.name.endswith('.xlsx'):
         return pd.read_excel(file)
@@ -87,12 +94,11 @@ if df_sdp is not None:
         df_sk = None
 
     if df_sk is not None:
-        # Otomatis mengenali kolom REG, BEBAS/TGL, dan KET/SK
         col_sk_reg = next((c for c in df_sk.columns if 'REG' in c.upper()), df_sk.columns[0])
         col_sk_tgl = next((c for c in df_sk.columns if 'BEBAS' in c.upper() or 'TGL' in c.upper()), df_sk.columns[1])
         col_sk_ket = next((c for c in df_sk.columns if 'KET' in c.upper() or 'SK' in c.upper()), None)
         
-        # Bersihkan Nomor Register (Hapus titik, spasi, & simbol di kedua dataset)
+        # Pembersihan No Reg (Hapus titik, spasi, simbol di kedua dataset)
         df_sdp['reg_clean'] = df_sdp[col_reg].astype(str).str.upper().str.replace(r'[^A-Z0-9]', '', regex=True)
         df_sk['reg_clean'] = df_sk[col_sk_reg].astype(str).str.upper().str.replace(r'[^A-Z0-9]', '', regex=True)
         df_sk['Tgl_SK_Clean'] = parse_indo_date(df_sk[col_sk_tgl])
@@ -101,7 +107,6 @@ if df_sdp is not None:
             no_reg_sk = row['reg_clean']
             tgl_sk = row['Tgl_SK_Clean']
             
-            # Ambil nilai KET (misal: CB / PB / CMB)
             if col_sk_ket and pd.notna(row[col_sk_ket]):
                 no_sk = row[col_sk_ket]
             else:
