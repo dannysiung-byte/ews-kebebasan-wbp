@@ -26,20 +26,35 @@ if os.path.exists(FILE_CACHE_SK):
         st.rerun()
 
 def read_file(file):
+    """Fungsi pembaca file pintar yang otomatis mencari baris header tabel"""
     if hasattr(file, 'name') and file.name.endswith('.xlsx'):
-        return pd.read_excel(file)
+        df = pd.read_excel(file)
     elif isinstance(file, str) and file.endswith('.xlsx'):
-        return pd.read_excel(file)
+        df = pd.read_excel(file)
     else:
         try:
-            return pd.read_csv(file, sep=';')
+            df = pd.read_csv(file, sep=';')
         except:
-            return pd.read_csv(file, sep=',')
+            df = pd.read_csv(file, sep=',')
+            
+    # Cari baris yang mengandung nama kolom (HEADER) jika ada baris judul di atasnya
+    header_idx = None
+    for idx, row in df.iterrows():
+        row_str = " ".join(row.dropna().astype(str).values).upper()
+        if 'REG' in row_str or 'NAMA' in row_str or 'BEBAS' in row_str:
+            header_idx = idx
+            break
+            
+    if header_idx is not None and header_idx > 0:
+        new_header = df.iloc[header_idx]
+        df = df.iloc[header_idx + 1:].copy()
+        df.columns = new_header
+        
+    return df
 
 def clean_str(val):
     if pd.isna(val):
         return ""
-    # Hapus semua karakter non-alphanumerik & ubah ke kapital
     return re.sub(r'[^A-Z0-9]', '', str(val).upper())
 
 def parse_indo_date(series):
@@ -70,10 +85,10 @@ elif os.path.exists(FILE_CACHE_SDP):
     st.sidebar.info("ℹ️ Menampilkan Data SDP Terakhir.")
 
 if df_sdp is not None:
-    col_reg = next((c for c in df_sdp.columns if 'REG' in c.upper()), df_sdp.columns[0])
-    col_nama = next((c for c in df_sdp.columns if 'NAMA' in c.upper()), df_sdp.columns[1])
-    col_2_3 = next((c for c in df_sdp.columns if '2/3' in c or 'dua tiga' in c.lower()), None)
-    col_eks = next((c for c in df_sdp.columns if 'EKSPIRASI' in c.upper() or 'EKS' in c.upper()), None)
+    col_reg = next((c for c in df_sdp.columns if 'REG' in str(c).upper()), df_sdp.columns[0])
+    col_nama = next((c for c in df_sdp.columns if 'NAMA' in str(c).upper()), df_sdp.columns[1])
+    col_2_3 = next((c for c in df_sdp.columns if '2/3' in str(c) or 'dua tiga' in str(c).lower()), None)
+    col_eks = next((c for c in df_sdp.columns if 'EKSPIRASI' in str(c).upper() or 'EKS' in str(c).upper()), None)
     
     # Filter Narapidana (Register B)
     df_sdp = df_sdp[df_sdp[col_reg].astype(str).str.strip().str.upper().str.startswith('B')].copy()
@@ -101,10 +116,10 @@ if df_sdp is not None:
         st.sidebar.subheader("🔍 Preview File SK Terbaca:")
         st.sidebar.dataframe(df_sk.head(3))
         
-        col_sk_reg = next((c for c in df_sk.columns if 'REG' in c.upper()), df_sk.columns[0])
-        col_sk_nama = next((c for c in df_sk.columns if 'NAMA' in c.upper()), None)
-        col_sk_tgl = next((c for c in df_sk.columns if 'BEBAS' in c.upper() or 'TGL' in c.upper()), df_sk.columns[1])
-        col_sk_ket = next((c for c in df_sk.columns if 'KET' in c.upper() or 'SK' in c.upper()), None)
+        col_sk_reg = next((c for c in df_sk.columns if 'REG' in str(c).upper()), df_sk.columns[0])
+        col_sk_nama = next((c for c in df_sk.columns if 'NAMA' in str(c).upper()), None)
+        col_sk_tgl = next((c for c in df_sk.columns if 'BEBAS' in str(c).upper() or 'TGL' in str(c).upper()), df_sk.columns[1])
+        col_sk_ket = next((c for c in df_sk.columns if 'KET' in str(c).upper() or 'SK' in str(c).upper()), None)
         
         df_sdp['reg_clean'] = df_sdp[col_reg].apply(clean_str)
         df_sdp['nama_clean'] = df_sdp[col_nama].apply(clean_str)
@@ -121,10 +136,8 @@ if df_sdp is not None:
             
             no_sk = str(row[col_sk_ket]).strip() if col_sk_ket and pd.notna(row[col_sk_ket]) else 'SK Sah'
             
-            # Pencocokan via No Reg
             mask = (df_sdp['reg_clean'] == no_reg_sk) & (df_sdp['reg_clean'] != "")
             
-            # Fallback: Pencocokan via Nama jika No Reg tidak cocok
             if not mask.any() and nama_sk != "":
                 mask = df_sdp['nama_clean'] == nama_sk
                 
