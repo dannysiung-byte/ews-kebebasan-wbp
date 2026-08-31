@@ -85,17 +85,24 @@ if df_sdp is not None:
         # Membersihkan format No Reg agar pasti cocok
         df_sdp['reg_clean'] = df_sdp[col_reg].astype(str).str.upper().str.replace(r'[^A-Z0-9]', '', regex=True)
         
+        # 1. Konversi tanggal SK Integrasi terlebih dahulu
+        df_sk['Tgl_SK_Clean'] = parse_indo_date(df_sk[col_sk_tgl])
+        
         for index, row in df_sk.iterrows():
             no_reg_sk = pd.Series(str(row[col_sk_reg])).str.upper().str.replace(r'[^A-Z0-9]', '', regex=True).iloc[0]
-            tgl_sk = row[col_sk_tgl]
+            tgl_sk = row['Tgl_SK_Clean']
             no_sk = row.get('Nomor SK', 'SK Sah')
             
             mask = df_sdp['reg_clean'] == no_reg_sk
-            df_sdp.loc[mask, 'Tgl_Bebas_Fix'] = tgl_sk
-            df_sdp.loc[mask, 'Status_Kebebasan'] = f"SK Integrasi Turun ({no_sk})"
+            # 2. Update tanggal & status jika Nomor Register cocok
+            if mask.any() and pd.notna(tgl_sk):
+                df_sdp.loc[mask, 'Tgl_Bebas_Fix'] = tgl_sk
+                df_sdp.loc[mask, 'Status_Kebebasan'] = f"SK Integrasi Turun ({no_sk})"
 
-    # Pembacaan Tanggal yang Mengakomodasi Bahasa Indonesia
+    # Pembacaan Tanggal Master SDP
     df_sdp['Tgl_Bebas_Fix'] = parse_indo_date(df_sdp['Tgl_Bebas_Fix'])
+    if col_2_3:
+        df_sdp['Tgl_2_3_Clean'] = parse_indo_date(df_sdp[col_2_3])
     if col_2_3:
         df_sdp['Tgl_2_3_Clean'] = parse_indo_date(df_sdp[col_2_3])
 
