@@ -38,7 +38,6 @@ def parse_indo_date(series):
         'oktober': 'october', 'november': 'november', 'desember': 'december'
     }
     
-    # Ubah nama bulan ke Bahasa Inggris agar terbaca oleh Pandas
     s_clean = series.astype(str).str.lower()
     for indo, eng in bulan_indo.items():
         s_clean = s_clean.str.replace(indo, eng, regex=False)
@@ -79,21 +78,21 @@ if df_sdp is not None:
     else:
         df_sk = None
 
-   if df_sk is not None:
-    col_sk_reg = next((c for c in df_sk.columns if 'REG' in c.upper()), df_sk.columns[0])
-    col_sk_tgl = next((c for c in df_sk.columns if 'BEBAS' in c.upper() or 'TGL' in c.upper()), df_sk.columns[1])
-    
-    # Membersihkan format No Reg (hapus spasi & karakter khusus agar pasti cocok)
-    df_sdp['reg_clean'] = df_sdp[col_reg].astype(str).str.upper().str.replace(r'[^A-Z0-9]', '', regex=True)
-    
-    for index, row in df_sk.iterrows():
-        no_reg_sk = pd.Series(str(row[col_sk_reg])).str.upper().str.replace(r'[^A-Z0-9]', '', regex=True).iloc[0]
-        tgl_sk = row[col_sk_tgl]
-        no_sk = row.get('Nomor SK', 'SK Sah')
+    if df_sk is not None:
+        col_sk_reg = next((c for c in df_sk.columns if 'REG' in c.upper()), df_sk.columns[0])
+        col_sk_tgl = next((c for c in df_sk.columns if 'BEBAS' in c.upper() or 'TGL' in c.upper()), df_sk.columns[1])
         
-        mask = df_sdp['reg_clean'] == no_reg_sk
-        df_sdp.loc[mask, 'Tgl_Bebas_Fix'] = tgl_sk
-        df_sdp.loc[mask, 'Status_Kebebasan'] = f"SK Integrasi Turun ({no_sk})"
+        # Membersihkan format No Reg agar pasti cocok
+        df_sdp['reg_clean'] = df_sdp[col_reg].astype(str).str.upper().str.replace(r'[^A-Z0-9]', '', regex=True)
+        
+        for index, row in df_sk.iterrows():
+            no_reg_sk = pd.Series(str(row[col_sk_reg])).str.upper().str.replace(r'[^A-Z0-9]', '', regex=True).iloc[0]
+            tgl_sk = row[col_sk_tgl]
+            no_sk = row.get('Nomor SK', 'SK Sah')
+            
+            mask = df_sdp['reg_clean'] == no_reg_sk
+            df_sdp.loc[mask, 'Tgl_Bebas_Fix'] = tgl_sk
+            df_sdp.loc[mask, 'Status_Kebebasan'] = f"SK Integrasi Turun ({no_sk})"
 
     # Pembacaan Tanggal yang Mengakomodasi Bahasa Indonesia
     df_sdp['Tgl_Bebas_Fix'] = parse_indo_date(df_sdp['Tgl_Bebas_Fix'])
