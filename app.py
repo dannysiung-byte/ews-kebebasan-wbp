@@ -18,7 +18,6 @@ st.sidebar.header("📁 Kelola Data SDP & SK")
 file_sdp_upload = st.sidebar.file_uploader("1. Update Data SDP Master (Opsional)", type=["xlsx", "csv"])
 file_sk_upload = st.sidebar.file_uploader("2. Upload Update SK Integrasi", type=["xlsx", "csv"])
 
-# Tombol Bersihkan Cache SK jika data tidak kunjung ter-update
 if os.path.exists(FILE_CACHE_SK):
     if st.sidebar.button("🗑️ Hapus Cache Data SK Lama"):
         os.remove(FILE_CACHE_SK)
@@ -36,7 +35,6 @@ def read_file(file):
         except:
             return pd.read_csv(file, sep=',')
 
-# Fungsi Konversi Tanggal Bahasa Indonesia & Berbagai Format
 def parse_indo_date(series):
     bulan_indo = {
         'januari': 'january', 'februari': 'february', 'maret': 'march',
@@ -70,10 +68,9 @@ if df_sdp is not None:
     col_2_3 = next((c for c in df_sdp.columns if '2/3' in c or 'dua tiga' in c.lower()), None)
     col_eks = next((c for c in df_sdp.columns if 'EKSPIRASI' in c.upper() or 'EKS' in c.upper()), None)
     
-    # Filter Khusus Narapidana (Register B)
+    # Filter Narapidana
     df_sdp = df_sdp[df_sdp[col_reg].astype(str).str.strip().str.upper().str.startswith('B')].copy()
 
-    # Ekstrim Tanggal Ekspirasi sebagai Patokan Awal
     if col_eks:
         df_sdp['Tgl_Bebas_Fix'] = parse_indo_date(df_sdp[col_eks])
     else:
@@ -98,13 +95,13 @@ if df_sdp is not None:
         col_sk_tgl = next((c for c in df_sk.columns if 'BEBAS' in c.upper() or 'TGL' in c.upper()), df_sk.columns[1])
         col_sk_ket = next((c for c in df_sk.columns if 'KET' in c.upper() or 'SK' in c.upper()), None)
         
-        # Pembersihan No Reg (Hapus titik, spasi, simbol di kedua dataset)
+        # Pembersihan karakter khusus No Reg agar pasti sama
         df_sdp['reg_clean'] = df_sdp[col_reg].astype(str).str.upper().str.replace(r'[^A-Z0-9]', '', regex=True)
         df_sk['reg_clean'] = df_sk[col_sk_reg].astype(str).str.upper().str.replace(r'[^A-Z0-9]', '', regex=True)
         df_sk['Tgl_SK_Clean'] = parse_indo_date(df_sk[col_sk_tgl])
         
         for index, row in df_sk.iterrows():
-            no_reg_sk = row['reg_clean']
+            no_reg_sk = str(row['reg_clean'])
             tgl_sk = row['Tgl_SK_Clean']
             
             if col_sk_ket and pd.notna(row[col_sk_ket]):
