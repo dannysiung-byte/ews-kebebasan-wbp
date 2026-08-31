@@ -93,9 +93,11 @@ if df_sdp is not None:
             tgl_sk = row['Tgl_SK_Clean']
             no_sk = row.get('Nomor SK', 'SK Sah')
             
-            mask = df_sdp['reg_clean'] == no_reg_sk
-            # 2. Update tanggal & status jika Nomor Register cocok
-            if mask.any() and pd.notna(tgl_sk):
+            # Pembacaan Tanggal Master SDP (hanya jika belum terisi dari SK)
+    if col_eks:
+        df_sdp['Tgl_Bebas_Fix'] = df_sdp['Tgl_Bebas_Fix'].fillna(parse_indo_date(df_sdp[col_eks]))
+    if col_2_3:
+        df_sdp['Tgl_2_3_Clean'] = parse_indo_date(df_sdp[col_2_3])
                 df_sdp.loc[mask, 'Tgl_Bebas_Fix'] = tgl_sk
                 df_sdp.loc[mask, 'Status_Kebebasan'] = f"SK Integrasi Turun ({no_sk})"
 
