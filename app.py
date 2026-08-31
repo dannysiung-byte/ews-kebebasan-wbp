@@ -37,9 +37,9 @@ def read_file(file):
             return pd.read_csv(file, sep=',')
 
 def clean_str(val):
-    """Fungsi pembersih teks ekstrim (hapus spasi, simbol, dan huruf kecil)"""
     if pd.isna(val):
         return ""
+    # Hapus semua karakter non-alphanumerik & ubah ke kapital
     return re.sub(r'[^A-Z0-9]', '', str(val).upper())
 
 def parse_indo_date(series):
@@ -97,21 +97,20 @@ if df_sdp is not None:
         df_sk = None
 
     if df_sk is not None:
+        st.sidebar.write("---")
+        st.sidebar.subheader("🔍 Preview File SK Terbaca:")
+        st.sidebar.dataframe(df_sk.head(3))
+        
         col_sk_reg = next((c for c in df_sk.columns if 'REG' in c.upper()), df_sk.columns[0])
         col_sk_nama = next((c for c in df_sk.columns if 'NAMA' in c.upper()), None)
         col_sk_tgl = next((c for c in df_sk.columns if 'BEBAS' in c.upper() or 'TGL' in c.upper()), df_sk.columns[1])
         col_sk_ket = next((c for c in df_sk.columns if 'KET' in c.upper() or 'SK' in c.upper()), None)
         
-        # Kolom bantu pembersih
         df_sdp['reg_clean'] = df_sdp[col_reg].apply(clean_str)
         df_sdp['nama_clean'] = df_sdp[col_nama].apply(clean_str)
         
         df_sk['reg_clean'] = df_sk[col_sk_reg].apply(clean_str)
-        if col_sk_nama:
-            df_sk['nama_clean'] = df_sk[col_sk_nama].apply(clean_str)
-        else:
-            df_sk['nama_clean'] = ""
-            
+        df_sk['nama_clean'] = df_sk[col_sk_nama].apply(clean_str) if col_sk_nama else ""
         df_sk['Tgl_SK_Clean'] = parse_indo_date(df_sk[col_sk_tgl])
         
         match_count = 0
@@ -120,15 +119,12 @@ if df_sdp is not None:
             nama_sk = row['nama_clean']
             tgl_sk = row['Tgl_SK_Clean']
             
-            if col_sk_ket and pd.notna(row[col_sk_ket]):
-                no_sk = str(row[col_sk_ket]).strip()
-            else:
-                no_sk = 'SK Sah'
+            no_sk = str(row[col_sk_ket]).strip() if col_sk_ket and pd.notna(row[col_sk_ket]) else 'SK Sah'
             
-            # 1. Coba pencocokan berdasarkan No Reg
+            # Pencocokan via No Reg
             mask = (df_sdp['reg_clean'] == no_reg_sk) & (df_sdp['reg_clean'] != "")
             
-            # 2. Jika No Reg tidak cocok, coba pencocokan berdasarkan Nama WBP
+            # Fallback: Pencocokan via Nama jika No Reg tidak cocok
             if not mask.any() and nama_sk != "":
                 mask = df_sdp['nama_clean'] == nama_sk
                 
@@ -137,7 +133,10 @@ if df_sdp is not None:
                 df_sdp.loc[mask, 'Status_Kebebasan'] = f"SK Integrasi Turun ({no_sk})"
                 match_count += 1
 
-        st.sidebar.success(f"💾 Berhasil mencocokkan {match_count} data SK Integrasi!")
+        if match_count > 0:
+            st.sidebar.success(f"✅ Sukses mencocokkan {match_count} data SK!")
+        else:
+            st.sidebar.error("⚠️ File SK terbaca tetapi 0 data cocok dengan No Reg/Nama SDP Master.")
 
     today = date.today()
 
