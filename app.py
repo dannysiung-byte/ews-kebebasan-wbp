@@ -87,19 +87,25 @@ if df_sdp is not None:
         df_sk = None
 
     if df_sk is not None:
+        # Otomatis mengenali kolom REG, BEBAS/TGL, dan KET/SK
         col_sk_reg = next((c for c in df_sk.columns if 'REG' in c.upper()), df_sk.columns[0])
         col_sk_tgl = next((c for c in df_sk.columns if 'BEBAS' in c.upper() or 'TGL' in c.upper()), df_sk.columns[1])
+        col_sk_ket = next((c for c in df_sk.columns if 'KET' in c.upper() or 'SK' in c.upper()), None)
         
-        # Membersihkan format No Reg agar pasti cocok
+        # Bersihkan Nomor Register (Hapus titik, spasi, & simbol di kedua dataset)
         df_sdp['reg_clean'] = df_sdp[col_reg].astype(str).str.upper().str.replace(r'[^A-Z0-9]', '', regex=True)
-        
-        # Konversi tanggal SK Integrasi
+        df_sk['reg_clean'] = df_sk[col_sk_reg].astype(str).str.upper().str.replace(r'[^A-Z0-9]', '', regex=True)
         df_sk['Tgl_SK_Clean'] = parse_indo_date(df_sk[col_sk_tgl])
         
         for index, row in df_sk.iterrows():
-            no_reg_sk = pd.Series(str(row[col_sk_reg])).str.upper().str.replace(r'[^A-Z0-9]', '', regex=True).iloc[0]
+            no_reg_sk = row['reg_clean']
             tgl_sk = row['Tgl_SK_Clean']
-            no_sk = row.get('Nomor SK', 'SK Sah')
+            
+            # Ambil nilai KET (misal: CB / PB / CMB)
+            if col_sk_ket and pd.notna(row[col_sk_ket]):
+                no_sk = row[col_sk_ket]
+            else:
+                no_sk = 'SK Sah'
             
             mask = df_sdp['reg_clean'] == no_reg_sk
             if mask.any() and pd.notna(tgl_sk):
