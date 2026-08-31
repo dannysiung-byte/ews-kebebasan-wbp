@@ -3,6 +3,7 @@ import pandas as pd
 from datetime import date
 import os
 import urllib.parse
+import re
 
 st.set_page_config(page_title="SIP-WBP", layout="wide")
 
@@ -34,6 +35,12 @@ def read_file(file):
             return pd.read_csv(file, sep=';')
         except:
             return pd.read_csv(file, sep=',')
+
+def clean_str(val):
+    """Fungsi pembersih teks ekstrim (hapus spasi, simbol, dan huruf kecil)"""
+    if pd.isna(val):
+        return ""
+    return re.sub(r'[^A-Z0-9]', '', str(val).upper())
 
 def parse_indo_date(series):
     bulan_indo = {
@@ -68,7 +75,7 @@ if df_sdp is not None:
     col_2_3 = next((c for c in df_sdp.columns if '2/3' in c or 'dua tiga' in c.lower()), None)
     col_eks = next((c for c in df_sdp.columns if 'EKSPIRASI' in c.upper() or 'EKS' in c.upper()), None)
     
-    # Filter Narapidana
+    # Filter Narapidana (Register B)
     df_sdp = df_sdp[df_sdp[col_reg].astype(str).str.strip().str.upper().str.startswith('B')].copy()
 
     if col_eks:
@@ -84,7 +91,6 @@ if df_sdp is not None:
     if file_sk_upload is not None:
         df_sk = read_file(file_sk_upload)
         df_sk.to_csv(FILE_CACHE_SK, index=False, sep=';')
-        st.sidebar.success("💾 Data SK Integrasi baru disimpan!")
     elif os.path.exists(FILE_CACHE_SK):
         df_sk = pd.read_csv(FILE_CACHE_SK, sep=';')
     else:
@@ -92,27 +98,46 @@ if df_sdp is not None:
 
     if df_sk is not None:
         col_sk_reg = next((c for c in df_sk.columns if 'REG' in c.upper()), df_sk.columns[0])
+        col_sk_nama = next((c for c in df_sk.columns if 'NAMA' in c.upper()), None)
         col_sk_tgl = next((c for c in df_sk.columns if 'BEBAS' in c.upper() or 'TGL' in c.upper()), df_sk.columns[1])
         col_sk_ket = next((c for c in df_sk.columns if 'KET' in c.upper() or 'SK' in c.upper()), None)
         
-        # Pembersihan karakter khusus No Reg agar pasti sama
-        df_sdp['reg_clean'] = df_sdp[col_reg].astype(str).str.upper().str.replace(r'[^A-Z0-9]', '', regex=True)
-        df_sk['reg_clean'] = df_sk[col_sk_reg].astype(str).str.upper().str.replace(r'[^A-Z0-9]', '', regex=True)
+        # Kolom bantu pembersih
+        df_sdp['reg_clean'] = df_sdp[col_reg].apply(clean_str)
+        df_sdp['nama_clean'] = df_sdp[col_nama].apply(clean_str)
+        
+        df_sk['reg_clean'] = df_sk[col_sk_reg].apply(clean_str)
+        if col_sk_nama:
+            df_sk['nama_clean'] = df_sk[col_sk_nama].apply(clean_str)
+        else:
+            df_sk['nama_clean'] = ""
+            
         df_sk['Tgl_SK_Clean'] = parse_indo_date(df_sk[col_sk_tgl])
         
+        match_count = 0
         for index, row in df_sk.iterrows():
-            no_reg_sk = str(row['reg_clean'])
+            no_reg_sk = row['reg_clean']
+            nama_sk = row['nama_clean']
             tgl_sk = row['Tgl_SK_Clean']
             
             if col_sk_ket and pd.notna(row[col_sk_ket]):
-                no_sk = row[col_sk_ket]
+                no_sk = str(row[col_sk_ket]).strip()
             else:
                 no_sk = 'SK Sah'
             
-            mask = df_sdp['reg_clean'] == no_reg_sk
+            # 1. Coba pencocokan berdasarkan No Reg
+            mask = (df_sdp['reg_clean'] == no_reg_sk) & (df_sdp['reg_clean'] != "")
+            
+            # 2. Jika No Reg tidak cocok, coba pencocokan berdasarkan Nama WBP
+            if not mask.any() and nama_sk != "":
+                mask = df_sdp['nama_clean'] == nama_sk
+                
             if mask.any() and pd.notna(tgl_sk):
                 df_sdp.loc[mask, 'Tgl_Bebas_Fix'] = tgl_sk
                 df_sdp.loc[mask, 'Status_Kebebasan'] = f"SK Integrasi Turun ({no_sk})"
+                match_count += 1
+
+        st.sidebar.success(f"💾 Berhasil mencocokkan {match_count} data SK Integrasi!")
 
     today = date.today()
 
